@@ -1,6 +1,9 @@
-# TaskFlow — Gestor de Tareas y Metas
+# TaskFlow — Gestor de Tareas
 
 TaskFlow es una aplicación web (PWA) de gestión de tareas rápida, eficiente y totalmente independiente centrada en la productividad personal. Construida con una filosofía minimalista en mente: **sin bases de datos, sin backend y sin tiempos de carga.** Todo el almacenamiento y la lógica ocurren directamente en tu navegador.
+
+## 🌐 Demo en Vivo
+Puedes acceder y utilizar la aplicación desplegada en: **[https://task-flow-gules-one.vercel.app/](https://task-flow-gules-one.vercel.app/)**
 
 ## 🚀 Características Principales
 - **Arquitectura "Frontend Only"**: HTML, CSS y JavaScript Vanilla puros agrupados en unos pocos archivos.
