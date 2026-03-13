@@ -133,6 +133,10 @@ select{-webkit-appearance:none;appearance:none;background-image:url("data:image/
 .btn-cancel:hover{border-color:var(--text3)}
 .btn-danger{background:var(--danger);color:#fff;padding:10px 16px;border-radius:var(--radius);font-weight:700;transition:all var(--transition)}
 .btn-danger:hover{opacity:.85}
+.weekday-selector{display:flex;gap:4px;width:100%;justify-content:space-between;margin-top:6px}
+.btn-day{width:32px;height:32px;border-radius:50%;background:var(--bg3);border:1px solid var(--border);font-size:.75rem;font-weight:700;transition:all var(--transition);color:var(--text3)}
+.btn-day:hover{border-color:var(--text2)}
+.btn-day.selected{background:var(--accent);color:#0d1117;border-color:var(--accent)}
 
 /* EMPTY STATE */
 .empty-state{text-align:center;padding:60px 20px;color:var(--text3)}
@@ -240,8 +244,20 @@ select{-webkit-appearance:none;appearance:none;background-image:url("data:image/
       <div class="form-group"><label>Categoría</label><select id="fCategory"><option value="work">Trabajo</option><option value="personal">Personal</option><option value="health">Salud</option><option value="learning">Aprendizaje</option><option value="finance">Finanzas</option></select></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>Fecha Límite</label><input type="date" id="fDate"></div>
-      <div class="form-group"><label>Recurrencia</label><select id="fRecurrence"><option value="none">Una vez</option><option value="daily">Diaria</option><option value="weekly">Semanal</option><option value="monthly">Mensual</option></select></div>
+      <div class="form-group"><label>Fecha Inicio / Límite</label><input type="date" id="fDate"></div>
+      <div class="form-group"><label>Repetir (Hábito)</label><select id="fRecurrence"><option value="none">Sin repetición</option><option value="daily">Todos los días</option><option value="weekdays">Laborables (Lun-Vie)</option><option value="custom">Días específicos</option></select></div>
+    </div>
+    <div class="form-group" id="fRecDaysGroup" style="display:none">
+      <label>Días de la semana</label>
+      <div class="weekday-selector">
+        <button type="button" class="btn-day" data-day="1">L</button>
+        <button type="button" class="btn-day" data-day="2">M</button>
+        <button type="button" class="btn-day" data-day="3">X</button>
+        <button type="button" class="btn-day" data-day="4">J</button>
+        <button type="button" class="btn-day" data-day="5">V</button>
+        <button type="button" class="btn-day" data-day="6">S</button>
+        <button type="button" class="btn-day" data-day="0">D</button>
+      </div>
     </div>
   </div>
   <div class="modal-footer">
@@ -268,11 +284,10 @@ function saveData(d){localStorage.setItem(STORAGE_KEY,JSON.stringify(d))}
 function getDefaultData(){
   const t=new Date(),td=fmt(t),tm=fmt(addDays(t,1)),tw=fmt(addDays(t,3));
   return{tasks:[
-    {id:uuid(),title:'Revisar hoja de ruta del proyecto',description:'Revisar objetivos del Q2 y actualizar prioridades',priority:'high',category:'work',dueDate:td,recurrence:'none',completed:false,createdAt:t.toISOString()},
-    {id:uuid(),title:'Ejercicio matutino',description:'30 min cardio + estiramientos',priority:'medium',category:'health',dueDate:td,recurrence:'daily',completed:false,createdAt:t.toISOString()},
-    {id:uuid(),title:'Leer 20 minutos',description:'Continuar con el capítulo actual',priority:'low',category:'learning',dueDate:tm,recurrence:'daily',completed:false,createdAt:t.toISOString()},
-    {id:uuid(),title:'Preparar informe semanal',description:'',priority:'high',category:'work',dueDate:tw,recurrence:'weekly',completed:false,createdAt:t.toISOString()},
-    {id:uuid(),title:'Preparar comidas del domingo',description:'Planificar y preparar comidas para la próxima semana',priority:'medium',category:'health',dueDate:tw,recurrence:'weekly',completed:false,createdAt:t.toISOString()}
+    {id:uuid(),title:'Revisar hoja de ruta del proyecto',description:'Revisar objetivos del Q2 y actualizar prioridades',priority:'high',category:'work',dueDate:td,recurrence:'none',recurrenceDays:[],completed:false,completedDates:[],createdAt:t.toISOString()},
+    {id:uuid(),title:'Ejercicio matutino',description:'30 min cardio + estiramientos',priority:'medium',category:'health',dueDate:td,recurrence:'daily',recurrenceDays:[0,1,2,3,4,5,6],completed:false,completedDates:[],createdAt:t.toISOString()},
+    {id:uuid(),title:'Leer 20 minutos',description:'Continuar con el capítulo actual',priority:'low',category:'learning',dueDate:td,recurrence:'weekdays',recurrenceDays:[1,2,3,4,5],completed:false,completedDates:[],createdAt:t.toISOString()},
+    {id:uuid(),title:'Preparar info de Sábados',description:'',priority:'high',category:'work',dueDate:td,recurrence:'custom',recurrenceDays:[6],completed:false,completedDates:[],createdAt:t.toISOString()}
   ],settings:{theme:'dark',currentView:'daily'}};
 }
 function fmt(d){return d.toISOString().split('T')[0]}
@@ -323,9 +338,23 @@ function filtered(tasks){
 
 /* MODAL */
 let editingId=null;
+let customDays = new Set();
 const overlay=document.getElementById('modalOverlay'),panel=document.getElementById('modalPanel');
+
+document.getElementById('fRecurrence').onchange=e=>{
+  document.getElementById('fRecDaysGroup').style.display = e.target.value==='custom'?'block':'none';
+};
+document.querySelectorAll('.btn-day').forEach(b=>b.onclick=e=>{
+  const d=parseInt(e.target.dataset.day);
+  if(customDays.has(d)) customDays.delete(d); else customDays.add(d);
+  e.target.classList.toggle('selected');
+});
+
 function openModal(task){
   editingId=task?task.id:null;
+  customDays = new Set(task && task.recurrenceDays ? task.recurrenceDays : []);
+  document.querySelectorAll('.btn-day').forEach(b=>b.classList.toggle('selected', customDays.has(parseInt(b.dataset.day))));
+  
   document.getElementById('modalTitle').textContent=task?'Editar Tarea':'Nueva Tarea';
   document.getElementById('fTitle').value=task?task.title:'';
   document.getElementById('fDesc').value=task?task.description:'';
@@ -333,29 +362,42 @@ function openModal(task){
   document.getElementById('fCategory').value=task?task.category:'work';
   document.getElementById('fDate').value=task?task.dueDate:TODAY;
   document.getElementById('fRecurrence').value=task?task.recurrence:'none';
+  document.getElementById('fRecDaysGroup').style.display=task&&task.recurrence==='custom'?'block':'none';
   document.getElementById('btnDelete').style.display=task?'block':'none';
   overlay.classList.add('open');panel.classList.add('open');
   setTimeout(()=>document.getElementById('fTitle').focus(),300);
 }
-function closeModal(){overlay.classList.remove('open');panel.classList.remove('open');editingId=null}
+function closeModal(){overlay.classList.remove('open');panel.classList.remove('open');editingId=null;}
 document.getElementById('btnAdd').onclick=()=>openModal(null);
 document.getElementById('modalClose').onclick=closeModal;
 document.getElementById('modalOverlay').onclick=closeModal;
 document.getElementById('btnCancel').onclick=closeModal;
 
 document.getElementById('btnSave').onclick=()=>{
-  const title=document.getElementById('fTitle').value.trim();
-  if(!title)return document.getElementById('fTitle').focus();
-  const obj={
-    title,description:document.getElementById('fDesc').value.trim(),
-    priority:document.getElementById('fPriority').value,
-    category:document.getElementById('fCategory').value,
-    dueDate:document.getElementById('fDate').value||TODAY,
-    recurrence:document.getElementById('fRecurrence').value
-  };
-  if(editingId){const i=data.tasks.findIndex(t=>t.id===editingId);if(i>-1)Object.assign(data.tasks[i],obj)}
-  else data.tasks.push({id:uuid(),completed:false,createdAt:new Date().toISOString(),...obj});
-  saveData(data);closeModal();render();
+  try{
+    const title=document.getElementById('fTitle').value.trim();
+    if(!title)return document.getElementById('fTitle').focus();
+    const rec=document.getElementById('fRecurrence').value;
+    let rd=[];
+    if(rec==='daily')rd=[0,1,2,3,4,5,6];
+    else if(rec==='weekdays')rd=[1,2,3,4,5];
+    else if(rec==='custom'){
+      rd=Array.from(customDays);
+    }
+  
+    const obj={
+      title,description:document.getElementById('fDesc').value.trim(),
+      priority:document.getElementById('fPriority').value,
+      category:document.getElementById('fCategory').value,
+      dueDate:document.getElementById('fDate').value||TODAY,
+      recurrence:rec, recurrenceDays:rd
+    };
+    if(editingId){const i=data.tasks.findIndex(t=>t.id===editingId);if(i>-1)Object.assign(data.tasks[i],obj)}
+    else data.tasks.push({id:uuid(),completed:false,completedDates:[],createdAt:(document.getElementById('fDate').value?document.getElementById('fDate').value+'T00:00:00.000Z':new Date().toISOString()),...obj});
+    saveData(data);closeModal();render();
+  }catch(e){
+    alert("Save Error: " + e.message);
+  }
 };
 document.getElementById('btnDelete').onclick=()=>{
   if(!editingId)return;data.tasks=data.tasks.filter(t=>t.id!==editingId);
@@ -369,8 +411,17 @@ document.addEventListener('keydown',e=>{
 });
 
 /* TOGGLE COMPLETE */
-function toggleComplete(id){
-  const t=data.tasks.find(x=>x.id===id);if(t)t.completed=!t.completed;
+function toggleComplete(id, ds){
+  if(!ds)return;
+  const t=data.tasks.find(x=>x.id===id);if(!t)return;
+  const isRoutine = t.recurrence==='daily'||t.recurrence==='weekdays'||t.recurrence==='custom';
+  if(isRoutine){
+    t.completedDates = t.completedDates||[];
+    if(t.completedDates.includes(ds)) t.completedDates = t.completedDates.filter(d=>d!==ds);
+    else t.completedDates.push(ds);
+  } else {
+    t.completed=!t.completed;
+  }
   saveData(data);render();
 }
 
@@ -409,6 +460,9 @@ function onDrop(e,targetId){
     const newDate = dayGroup.dataset.date;
     const dragTask = data.tasks.find(t=>t.id===dragId);
     if(newDate && dragTask && dragTask.dueDate !== newDate) {
+      if(dragTask.recurrence==='daily'||dragTask.recurrence==='weekdays'||dragTask.recurrence==='custom'){
+        alert('Los hábitos (Recurrencia) no se pueden mover de día. Edita la tarea para cambiar sus días.');return;
+      }
       dragTask.dueDate = newDate;
       saveData(data);render();
       return;
@@ -424,17 +478,20 @@ function onDrop(e,targetId){
 }
 
 /* RENDER CARD */
-function cardHTML(t){
+function cardHTML(t, ds){
   const priClass={high:'tag-high',medium:'tag-medium',low:'tag-low'}[t.priority];
   const priLabel={high:'Alta',medium:'Media',low:'Baja'}[t.priority];
   const catLabel={work:'Trabajo',personal:'Personal',health:'Salud',learning:'Aprendizaje',finance:'Finanzas'}[t.category]||t.category;
-  const recurLabel={none:'',daily:'🔁 Diaria',weekly:'🔁 Semanal',monthly:'🔁 Mensual'}[t.recurrence];
-  const isOverdue = !t.completed && t.dueDate && t.dueDate < TODAY;
-  return`<div class="task-card ${t.completed?'completed':''} ${isOverdue?'overdue':''}" draggable="true" data-id="${t.id}"
+  const isRoutine = t.recurrence==='daily'||t.recurrence==='weekdays'||t.recurrence==='custom';
+  const recurLabel={none:'',daily:'🔁 Todos los días',weekdays:'🔁 Lun-Vie',custom:'🔁 Personalizado',weekly:'🔁 Semanal',monthly:'🔁 Mensual'}[t.recurrence];
+  const isCompleted = isRoutine ? (t.completedDates||[]).includes(ds) : t.completed;
+  const isOverdue = !isRoutine && !t.completed && t.dueDate && t.dueDate < TODAY;
+  
+  return`<div class="task-card ${isCompleted?'completed':''} ${isOverdue?'overdue':''}" draggable="true" data-id="${t.id}"
     ondragstart="onDragStart(event,'${t.id}')" ondragend="onDragEnd(event)"
     ondragover="onDragOver(event)" ondrop="onDrop(event,'${t.id}')">
     <span class="drag-handle">⠿</span>
-    <div class="task-check ${t.completed?'checked':''}" onclick="toggleComplete('${t.id}')">${t.completed?'✓':''}</div>
+    <div class="task-check ${isCompleted?'checked':''}" onclick="toggleComplete('${t.id}', '${ds}')">${isCompleted?'✓':''}</div>
     <div class="task-body">
       <div class="task-title">${esc(t.title)}</div>
       <div class="task-meta">
@@ -465,9 +522,16 @@ function emptyHTML(msg){return`<div class="empty-state"><div class="icon">📭</
 
 /* RENDER DAILY */
 function renderDaily(){
-  const tasks=filtered(data.tasks.filter(t=>t.dueDate===TODAY));
+  const ds=TODAY, dObj=parseDate(ds);
+  const tasks=filtered(data.tasks.filter(t=>{
+    const isRoutine=t.recurrence==='daily'||t.recurrence==='weekdays'||t.recurrence==='custom';
+    if(isRoutine){
+      return (t.recurrenceDays||[]).includes(dObj.getDay());
+    }
+    return t.dueDate===ds;
+  }));
   if(!tasks.length){views.daily.innerHTML=emptyHTML('No hay tareas para hoy. ¡Presiona <b>N</b> para agregar una!');return}
-  views.daily.innerHTML=`<div class="task-list">${tasks.map(cardHTML).join('')}</div>`;
+  views.daily.innerHTML=`<div class="task-list">${tasks.map(t=>cardHTML(t, ds)).join('')}</div>`;
 }
 
 /* RENDER WEEKLY */
@@ -477,10 +541,16 @@ function renderWeekly(){
   let html='';
   for(let i=0;i<7;i++){
     const d=addDays(mon,i),ds=fmt(d);
-    const tasks=filtered(data.tasks.filter(t=>t.dueDate===ds));
+    const tasks=filtered(data.tasks.filter(t=>{
+      const isRoutine=t.recurrence==='daily'||t.recurrence==='weekdays'||t.recurrence==='custom';
+      if(isRoutine){
+        return (t.recurrenceDays||[]).includes(d.getDay());
+      }
+      return t.dueDate===ds;
+    }));
     const isToday=ds===TODAY;
     html+=`<div class="day-group" data-date="${ds}" ondragover="onDragOver(event)" ondrop="onDrop(event, null)"><div class="day-group-title"><span>${isToday?'⬤ ':''} ${days[i]}, ${d.toLocaleDateString('es',{month:'short',day:'numeric'})}</span><span class="count">${tasks.length}</span></div>`;
-    if(tasks.length)html+=`<div class="task-list">${tasks.map(cardHTML).join('')}</div>`;
+    if(tasks.length)html+=`<div class="task-list">${tasks.map(t=>cardHTML(t, ds)).join('')}</div>`;
     else html+=`<div style="padding:16px;text-align:center;font-size:.7rem;color:var(--text3);border:1px dashed var(--border);border-radius:var(--radius)">Soltar tareas aquí</div>`;
     html+=`</div>`;
   }
@@ -515,11 +585,16 @@ function renderMonthly(){
   for(let w=0;w<5;w++){
     const ws=addDays(first,w*7>last.getDate()-1?last.getDate()-1:w*7);
     const we=addDays(ws,6);
-    const weekTasks=filtered(data.tasks.filter(t=>{if(!t.dueDate)return false;return t.dueDate>=fmt(ws<=first?first:ws)&&t.dueDate<=fmt(we>last?last:we)}));
+    const weekTasks=filtered(data.tasks.filter(t=>{
+      const isRoutine=t.recurrence==='daily'||t.recurrence==='weekdays'||t.recurrence==='custom';
+      if(isRoutine) return t.createdAt <= fmt(we);
+      if(!t.dueDate)return false;
+      return t.dueDate>=fmt(ws<=first?first:ws)&&t.dueDate<=fmt(we>last?last:we)
+    }));
     if(!weekTasks.length&&w>0)continue;
     const wStart=ws<first?first:ws,wEnd=we>last?last:we;
     html+=`<div class="week-section"><div class="week-section-title">Semana del ${wStart.toLocaleDateString('es',{day:'numeric',month:'short'})} al ${wEnd.toLocaleDateString('es',{day:'numeric',month:'short'})}</div>`;
-    if(weekTasks.length)html+=`<div class="task-list">${weekTasks.map(cardHTML).join('')}</div>`;
+    if(weekTasks.length)html+=`<div class="task-list">${weekTasks.map(t=>cardHTML(t, t.recurrence==='none'?t.dueDate:'')).join('')}</div>`;
     else html+=`<div style="padding:8px 0;font-size:.75rem;color:var(--text3)">Sin metas esta semana</div>`;
     html+=`</div>`;
   }
@@ -538,7 +613,10 @@ function renderStats(){
   const daysData=[];
   for(let i=0;i<7;i++){
     const cur=addDays(d,i), ds=fmt(cur);
-    const dayTasks=data.tasks.filter(t=>t.dueDate===ds&&t.completed);
+    const dayTasks=data.tasks.filter(t=>{
+      const isRoutine=t.recurrence==='daily'||t.recurrence==='weekdays'||t.recurrence==='custom';
+      return isRoutine ? (t.completedDates||[]).includes(ds) : (t.dueDate===ds && t.completed);
+    });
     if(dayTasks.length>max)max=dayTasks.length;
     daysData.push({l:dayNames[cur.getDay()],v:dayTasks.length});
   }
@@ -551,10 +629,18 @@ function renderStats(){
   // Distribución por Categoría (Total Histórico Completadas)
   html+=`<div class="stat-card"><h3>Tareas Completadas por Categoría</h3><div class="cat-list">`;
   const cats={work:{l:'Trabajo',c:'#39ffb4'},personal:{l:'Personal',c:'#ffb347'},health:{l:'Salud',c:'#ff5c5c'},learning:{l:'Aprender',c:'#00c8ff'},finance:{l:'Finanzas',c:'#b173ff'}};
-  const completadas = data.tasks.filter(t=>t.completed);
-  const total = completadas.length||1;
   const counts={work:0,personal:0,health:0,learning:0,finance:0};
-  completadas.forEach(t=>{if(counts[t.category]!==undefined)counts[t.category]++});
+  let total = 0;
+  data.tasks.forEach(t=>{
+    const isRoutine=t.recurrence==='daily'||t.recurrence==='weekdays'||t.recurrence==='custom';
+    if(isRoutine) {
+      const times = (t.completedDates||[]).length;
+      if(counts[t.category]!==undefined) { counts[t.category]+=times; total+=times; }
+    } else if(t.completed) {
+      if(counts[t.category]!==undefined) { counts[t.category]+=1; total+=1; }
+    }
+  });
+  if(total===0) total=1;
   
   Object.keys(counts).forEach(k=>{
     const pct=Math.round((counts[k]/total)*100);
@@ -569,10 +655,20 @@ function renderStats(){
 function calcStreak(){
   let streak=0,d=new Date();
   for(let i=0;i<365;i++){
-    const ds=fmt(d);
-    const dayTasks=data.tasks.filter(t=>t.dueDate===ds);
+    const ds=fmt(d), dObj=parseDate(ds);
+    const dayTasks=data.tasks.filter(t=>{
+      const isRoutine=t.recurrence==='daily'||t.recurrence==='weekdays'||t.recurrence==='custom';
+      if(isRoutine){
+        return (t.recurrenceDays||[]).includes(dObj.getDay());
+      }
+      return t.dueDate===ds;
+    });
     if(dayTasks.length===0){if(i===0){d=addDays(d,-1);continue;}break}
-    if(dayTasks.every(t=>t.completed))streak++;else if(i>0)break;
+    const allDone = dayTasks.every(t=>{
+      const isRoutine=t.recurrence==='daily'||t.recurrence==='weekdays'||t.recurrence==='custom';
+      return isRoutine ? (t.completedDates||[]).includes(ds) : t.completed;
+    });
+    if(allDone)streak++;else if(i>0)break;
     d=addDays(d,-1);
   }
   return streak;
@@ -580,24 +676,65 @@ function calcStreak(){
 
 /* PROGRESS */
 function updateProgress(){
-  let tasks,label;
-  if(currentView==='daily'){tasks=data.tasks.filter(t=>t.dueDate===TODAY);label="Progreso de Hoy"}
+  let total=0, done=0, label="";
+  const checkDaily = (ds) => {
+    const dObj=parseDate(ds);
+    const dayTasks=data.tasks.filter(t=>{
+      const isRoutine=t.recurrence==='daily'||t.recurrence==='weekdays'||t.recurrence==='custom';
+      if(isRoutine){
+        return (t.recurrenceDays||[]).includes(dObj.getDay());
+      }
+      return t.dueDate===ds;
+    });
+    total += dayTasks.length;
+    done += dayTasks.filter(t=>{
+      const isRoutine=t.recurrence==='daily'||t.recurrence==='weekdays'||t.recurrence==='custom';
+      return isRoutine ? (t.completedDates||[]).includes(ds) : t.completed;
+    }).length;
+  };
+
+  if(currentView==='daily'){
+    checkDaily(TODAY); label="Progreso de Hoy";
+  }
   else if(currentView==='weekly'){
     const now=new Date(),dow=now.getDay(),mon=new Date(now);mon.setDate(now.getDate()-(dow===0?6:dow-1));
-    const sun=addDays(mon,6);
-    tasks=data.tasks.filter(t=>t.dueDate>=fmt(mon)&&t.dueDate<=fmt(sun));label="Progreso Semanal";
+    for(let i=0;i<7;i++) checkDaily(fmt(addDays(mon,i)));
+    label="Progreso Semanal";
   }else{
-    tasks=data.tasks.filter(t=>{if(!t.dueDate)return false;const d=parseDate(t.dueDate);return d.getMonth()===calMonth&&d.getFullYear()===calYear});label="Progreso Mensual";
+    const tasks=data.tasks.filter(t=>{
+      const isRoutine=t.recurrence==='daily'||t.recurrence==='weekdays'||t.recurrence==='custom';
+      if(isRoutine)return false;
+      if(!t.dueDate)return false;
+      const d=parseDate(t.dueDate);
+      return d.getMonth()===calMonth&&d.getFullYear()===calYear;
+    });
+    total=tasks.length; done=tasks.filter(t=>t.completed).length;
+    label="Progreso Mensual";
   }
-  const total=tasks.length,done=tasks.filter(t=>t.completed).length;
+
   const pct=total?Math.round(done/total*100):0;
   document.getElementById('progressLabel').textContent=label;
   document.getElementById('progressPct').textContent=pct+'%';
   document.getElementById('progressFill').style.width=pct+'%';
   document.getElementById('streakVal').textContent=calcStreak();
-  const todayTasks=data.tasks.filter(t=>t.dueDate===TODAY);
-  document.getElementById('todayDone').textContent=todayTasks.filter(t=>t.completed).length;
-  document.getElementById('todayTotal').textContent=todayTasks.length;
+  
+  let tDone=0, tTotal=0;
+  const dObj=parseDate(TODAY);
+  const todayTasks=data.tasks.filter(t=>{
+    const isRoutine=t.recurrence==='daily'||t.recurrence==='weekdays'||t.recurrence==='custom';
+    if(isRoutine){
+      return (t.recurrenceDays||[]).includes(dObj.getDay());
+    }
+    return t.dueDate===TODAY;
+  });
+  tTotal = todayTasks.length;
+  tDone = todayTasks.filter(t=>{
+    const isRoutine=t.recurrence==='daily'||t.recurrence==='weekdays'||t.recurrence==='custom';
+    return isRoutine ? (t.completedDates||[]).includes(TODAY) : t.completed;
+  }).length;
+  
+  document.getElementById('todayDone').textContent=tDone;
+  document.getElementById('todayTotal').textContent=tTotal;
 }
 
 /* BACKUP / EXPORT / IMPORT */
@@ -635,11 +772,13 @@ if('serviceWorker' in navigator){
 
 /* MAIN RENDER */
 function render(){
-  if(currentView==='daily')renderDaily();
-  else if(currentView==='weekly')renderWeekly();
-  else if(currentView==='stats')renderStats();
-  else renderMonthly();
-  updateProgress();
+  try{
+    if(currentView==='daily')renderDaily();
+    else if(currentView==='weekly')renderWeekly();
+    else if(currentView==='stats')renderStats();
+    else renderMonthly();
+    updateProgress();
+  }catch(e){alert("Render Error: " + e.message + "\n" + e.stack);}
 }
 
 /* NOTIFICATIONS */
